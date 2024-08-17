@@ -4,9 +4,9 @@ const { default: mongoose } = require('mongoose');
 const User = require('./models/User');
 const Post = require('./models/Post');
 const bcrypt = require('bcryptjs');
-const app = express();
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const app = express();
 const multer = require('multer');
 const uploadMiddleware = multer( {dest: 'uploads/'} );
 const fs = require('fs');
@@ -23,6 +23,7 @@ app.use(express.json());
 
 // Use this to parse cookies
 app.use(cookieParser());
+app.use('/uploads', express.static(__dirname + '/uploads'));
 mongoose.connect('mongodb+srv://ardayildiz1074:tztCJ3r1dDt2pUny@cluster0.occyg50.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0');
 
 app.post('/register', async (req, res) => {
@@ -79,18 +80,27 @@ app.post('/post', uploadMiddleware.single('file'), async (req, res) => {
     newPath = path+'.'+ext;
     fs.renameSync(path, newPath);
 
-    const {title, summary, content} = req.body;
-    const postDoc = await Post.create({
-        title,
-        summary, 
-        content,
-        cover: newPath,
+    const {token} = req.cookies;
+    jwt.verify(token, secret, {}, async (err, info) => {
+        if (err) throw err;
+        const {title, summary, content} = req.body;
+        const postDoc = await Post.create({
+            title,
+            summary, 
+            content,
+            cover: newPath,
+            author: info.id,
+        });
+        res.json(postDoc);
     });
-
-    res.json(postDoc);
+    
 });
 
 app.get('/post', async (req, res) => {
-    res.json(await Post.find());
+    res.json(await Post.find()
+    .populate('author', ['username'])
+    .sort({createdAt: -1})
+    .limit(20)
+);
 });
 app.listen(4000);
